@@ -1,1 +1,16 @@
 
+# Build output
+/build/
+/dist/
+/target/
+
+# NetBeans private files
+/nbproject/private/
+
+# IDE files
+/.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
