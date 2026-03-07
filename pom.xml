@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-
-
-
-
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <!--  Feb 5th 2026. Updated to recent versions of java, grpc and other dependenices  -->
     <modelVersion>4.0.0</modelVersion>
     <groupId>DistSystem</groupId>
     <artifactId>iot-health-monitoring-grpc</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>HospitalGRPC</name>
+    <name>iot-health-monitoring-grpc</name>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>

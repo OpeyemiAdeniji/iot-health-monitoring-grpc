@@ -1,0 +1,27 @@
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "generated.grpc.devicealert";
+option java_outer_classname = "DeviceAlertImpl";
+
+package devicealert;
+
+service DeviceAlertService {
+
+  // Real-time communication between operator and alert system
+  rpc LiveDeviceAlerts(stream DeviceAlert) returns (stream DeviceAction) {}
+
+}
+
+// Alert sent when a device problem occurs
+message DeviceAlert {
+  string deviceId = 1;
+  string issue = 2;
+}
+
+// Recommended action from the server
+message DeviceAction {
+  string deviceId = 1;
+  string action = 2;
+}

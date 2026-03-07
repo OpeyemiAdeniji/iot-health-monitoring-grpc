@@ -9,5 +9,5 @@ package distsystem.iot.health.monitoring.grpc;
  * @author opeyemiadeniji
  */
 public class DeviceRegistryServer {
-    
+
 }
