@@ -1,4 +1,3 @@
-
 syntax = "proto3";
 
 option java_multiple_files = true;
@@ -8,20 +7,28 @@ option java_outer_classname = "DeviceRegistryImpl";
 package deviceregistry;
 
 service DeviceRegistryService {
-
   // registers a device into the monitoring system
   rpc RegisterDevice(DeviceInfo) returns (RegisterReply) {}
 
+  // checks whether a device is registered - called by HealthMonitoringServer
+  rpc CheckDevice(DeviceCheckRequest) returns (DeviceCheckReply) {}
 }
 
-// information about the device being registered
 message DeviceInfo {
   string deviceId = 1;
   string deviceType = 2;
 }
 
-// server response after registration
 message RegisterReply {
   bool success = 1;
+  string message = 2;
+}
+
+message DeviceCheckRequest {
+  string deviceId = 1;
+}
+
+message DeviceCheckReply {
+  bool exists = 1;
   string message = 2;
 }

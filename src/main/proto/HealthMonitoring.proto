@@ -1,4 +1,3 @@
-
 syntax = "proto3";
 
 option java_multiple_files = true;
@@ -8,34 +7,29 @@ option java_outer_classname = "HealthMonitoringImpl";
 package healthmonitoring;
 
 service HealthMonitoringService {
-
-  // devices send heartbeat signals to indicate they are alive
+  // devices stream heartbeat signals to indicate they are alive
   rpc UploadHeartbeats(stream Heartbeat) returns (HeartbeatSummary) {}
-
   // client subscribes to receive continuous health updates
   rpc StreamHealth(HealthRequest) returns (stream HealthStatus) {}
-
 }
 
-// heartbeat message sent by devices
 message Heartbeat {
   string deviceId = 1;
   int64 timestamp = 2;
 }
 
-// server summary after receiving heartbeats
 message HeartbeatSummary {
   int32 totalHeartbeats = 1;
   int32 uniqueDevices = 2;
+  int32 rejectedHeartbeats = 3;
+  string message = 4;
 }
 
-// request sent by client to start monitoring
 message HealthRequest {
   string groupId = 1;
 }
 
-// status updates streamed to the client
 message HealthStatus {
   string deviceId = 1;
-  string state = 2; 
+  string state = 2;
 }
