@@ -14,22 +14,22 @@ service HealthMonitoringService {
 }
 
 message Heartbeat {
-  string deviceId = 1;
-  int64 timestamp = 2;
+  string deviceId = 1; // identifier of the device sending the heartbeat
+  int64 timestamp = 2; // time the heartbeat was generated
 }
 
 message HeartbeatSummary {
-  int32 totalHeartbeats = 1;
-  int32 uniqueDevices = 2;
-  int32 rejectedHeartbeats = 3;
-  string message = 4;
+  int32 totalHeartbeats = 1; // number of heartbeat accepted
+  int32 uniqueDevices = 2; // number of distinct devices
+  int32 rejectedHeartbeats = 3; // heartbeats rejected due to unregistered devices
+  string message = 4; // summary of what happened 
 }
 
 message HealthRequest {
-  string groupId = 1;
+  string groupId = 1; // identifier for the factory site being monitored
 }
 
 message HealthStatus {
-  string deviceId = 1;
-  string state = 2;
+  string deviceId = 1; // unique identifier of the device
+  string state = 2; // status: OK, LATE or OFFLINE
 }

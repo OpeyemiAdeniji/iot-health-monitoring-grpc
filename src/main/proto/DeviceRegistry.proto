@@ -15,20 +15,20 @@ service DeviceRegistryService {
 }
 
 message DeviceInfo {
-  string deviceId = 1;
-  string deviceType = 2;
+  string deviceId = 1; // unique identifier for the device e.g "s1"
+  string deviceType = 2; // category of the device e.g "sensor", "controller"
 }
 
 message RegisterReply {
-  bool success = 1;
-  string message = 2;
+  bool success = 1; // true if registration was successful
+  string message = 2; // confirmation or error description
 }
 
 message DeviceCheckRequest {
-  string deviceId = 1;
+  string deviceId = 1; // the device ID to check
 }
 
 message DeviceCheckReply {
-  bool exists = 1;
-  string message = 2;
+  bool exists = 1; // true if the device is registered
+  string message = 2; // description of the result
 }

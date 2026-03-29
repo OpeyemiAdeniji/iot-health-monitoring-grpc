@@ -16,12 +16,12 @@ service DeviceAlertService {
 
 // Alert sent when a device problem occurs
 message DeviceAlert {
-  string deviceId = 1;
-  string issue = 2;
+  string deviceId = 1; // identifier of the device with the issue
+  string issue = 2; // description of the problem e.g "NO_HEARTBEAT"
 }
 
 // Recommended action from the server
 message DeviceAction {
-  string deviceId = 1;
-  string action = 2;
+  string deviceId = 1; // identifier of the device
+  string action = 2; // recommend action e.g "RESTART", "CHECK_NETWORK"
 }
