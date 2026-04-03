@@ -4,21 +4,10 @@
  */
 package distsystem.iot.health.monitoring.grpc;
 
-
 /**
  *
  * @author opeyemiadeniji
  */
-
-// DeviceRegistryService - Unary RPC
-// This service handles device registration for the smart factory system
-// When a new device comes online it must register here before it can
-// send heartbeats to the health monitoring service
-//
-// I also added a CheckDevice RPC that the HealthMonitoringServer calls
-// internally to verify a device is registered before accepting its heartbeat
-// This is inter-service communication - one server calling another
-
 import generated.grpc.deviceregistry.DeviceInfo;
 import generated.grpc.deviceregistry.RegisterReply;
 import generated.grpc.deviceregistry.DeviceCheckRequest;
@@ -39,21 +28,22 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
+// gRPC server for registering devices and validating their existence
 public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
 
     private static final Logger logger = Logger.getLogger(DeviceRegistryServer.class.getName());
-
-    // metadata keys - used to read the factory-id and timestamp sent by the client
-    private static final Metadata.Key<String> FACTORY_ID_KEY =
-            Metadata.Key.of("factory-id", Metadata.ASCII_STRING_MARSHALLER);
-    private static final Metadata.Key<String> CLIENT_TIMESTAMP_KEY =
-            Metadata.Key.of("client-timestamp", Metadata.ASCII_STRING_MARSHALLER);
-
-    // I used ConcurrentHashMap instead of HashMap because the HealthMonitoringServer
+    
+    // metadata keys used to read the factory id and timestamp sent by the client
+    private static final Metadata.Key<String> FACTORY_ID_KEY
+            = Metadata.Key.of("factory-id", Metadata.ASCII_STRING_MARSHALLER);
+    private static final Metadata.Key<String> CLIENT_TIMESTAMP_KEY
+            = Metadata.Key.of("client-timestamp", Metadata.ASCII_STRING_MARSHALLER);
+    
+    // i used ConcurrentHashMap instead of HashMap because the HealthMonitoringServer
     // can call checkDevice at the same time as a registration is happening
-    // ConcurrentHashMap handles that safely without needing manual synchronisation
     static Map<String, String> deviceRegistry = new ConcurrentHashMap<>();
 
+    // starts the registry server and registers it via JmDNS
     public static void main(String[] args) {
 
         DeviceRegistryServer deviceRegistryServer = new DeviceRegistryServer();
@@ -67,7 +57,7 @@ public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
                     .start();
 
             logger.info("DeviceRegistryServer started on port " + port);
-
+            
             // register with mDNS so the client can find this service automatically
             ServiceRegistration serviceRegistration = ServiceRegistration.getInstance();
             serviceRegistration.registerService(
@@ -84,13 +74,11 @@ public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
         }
     }
 
-    // Unary RPC - RegisterDevice
-    // client sends a DeviceInfo, server stores it and replies with a message
-    // returns an error if the device id is empty, type is empty, or already registered
+    // Unary RPC registers a new device if it is valid and not already registered
     @Override
     public void registerDevice(DeviceInfo request, StreamObserver<RegisterReply> responseObserver) {
 
-        String deviceId   = request.getDeviceId();
+        String deviceId = request.getDeviceId();
         String deviceType = request.getDeviceType();
 
         if (deviceId == null || deviceId.isBlank()) {
@@ -102,6 +90,7 @@ public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
             return;
         }
 
+        // prevent duplicate device registration
         if (deviceType == null || deviceType.isBlank()) {
             responseObserver.onError(
                     Status.INVALID_ARGUMENT
@@ -111,7 +100,7 @@ public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
             return;
         }
 
-        // don't allow the same device to register twice
+        // prevent duplicate device registration
         if (deviceRegistry.containsKey(deviceId)) {
             responseObserver.onError(
                     Status.ALREADY_EXISTS
@@ -133,9 +122,7 @@ public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    // Unary RPC - CheckDevice
-    // this is called by HealthMonitoringServer to check if a device is registered
-    // before accepting its heartbeat - this is the inter-service communication part
+    // this is called by HealthMonitoringServer to check if a device is registered before accepting its heartbeat
     @Override
     public void checkDevice(DeviceCheckRequest request, StreamObserver<DeviceCheckReply> responseObserver) {
 
@@ -164,13 +151,12 @@ public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    // interceptor that runs before every RPC call
+    // this is interceptor that runs before every RPC call
     // it reads the metadata headers sent by the client and logs them
-    // this shows how metadata flows from client to server in gRPC
     static class MetadataLoggerInterceptor implements ServerInterceptor {
 
-        private static final Logger interceptorLogger =
-                Logger.getLogger(MetadataLoggerInterceptor.class.getName());
+        private static final Logger interceptorLogger
+                = Logger.getLogger(MetadataLoggerInterceptor.class.getName());
 
         @Override
         public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
@@ -178,7 +164,7 @@ public class DeviceRegistryServer extends DeviceRegistryServiceImplBase {
                 Metadata headers,
                 ServerCallHandler<ReqT, RespT> next) {
 
-            String factoryId       = headers.get(FACTORY_ID_KEY);
+            String factoryId = headers.get(FACTORY_ID_KEY);
             String clientTimestamp = headers.get(CLIENT_TIMESTAMP_KEY);
 
             interceptorLogger.info("Request received"

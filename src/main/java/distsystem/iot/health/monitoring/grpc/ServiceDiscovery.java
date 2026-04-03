@@ -7,6 +7,7 @@ package distsystem.iot.health.monitoring.grpc;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Enumeration;
 import java.util.concurrent.CountDownLatch;
@@ -20,13 +21,6 @@ import javax.jmdns.ServiceListener;
  *
  * @author opeyemiadeniji
  */
-
-
-/**
- * Discovers gRPC services advertised via mDNS (JmDNS).
- * Uses the lecturer's original approach, with a cross-platform address
- * fix so it works on both Windows and macOS.
- */
 public class ServiceDiscovery {
 
     private String requiredServiceType;
@@ -34,26 +28,23 @@ public class ServiceDiscovery {
     private JmDNS jmdns;
     private int discoveredPort = -1;
 
+    // initializes service discovery with the target service type and name
     public ServiceDiscovery(String inServiceType, String inServiceName) {
         requiredServiceType = inServiceType;
         requiredServiceName = inServiceName;
     }
 
+    // discovers the required service and returns its port if found within the timeout
     public int discoverService(long timeoutMilliseconds) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
 
         try {
-            // --- The only change from the lecturer's version ---
-            // InetAddress.getLocalHost() returns 127.0.0.1 on macOS, which blocks
-            // mDNS multicast loopback. We find the real LAN address instead.
-            // On Windows, getLocalHost() already returns the LAN address, so this
-            // helper also works there.
             InetAddress bindAddress = getRealLocalAddress();
             System.out.println("Client: binding JmDNS to: " + bindAddress);
 
             jmdns = JmDNS.create(bindAddress);
 
-            // Everything below is identical to the lecturer's approach
+            // add a listener to listen for service events and resolves the target service to retrieve its port
             jmdns.addServiceListener(requiredServiceType, new ServiceListener() {
 
                 @Override
@@ -95,25 +86,21 @@ public class ServiceDiscovery {
         return discoveredPort;
     }
 
+    // closes the JmDNS instance if it was created
     public void close() throws IOException {
         if (jmdns != null) {
             jmdns.close();
         }
     }
 
-    /**
-     * Returns the machine's real LAN IP address (e.g. 192.168.x.x or 10.x.x.x).
-     * Falls back to getLocalHost() if no suitable address is found, which
-     * preserves the original behaviour on Windows where getLocalHost() already
-     * returns the LAN address.
-     */
+    // finds a usable local IPv4 address for binding JmDNS
     private InetAddress getRealLocalAddress() throws UnknownHostException {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces.hasMoreElements()) {
                 NetworkInterface ni = interfaces.nextElement();
 
-                // Skip loopback, inactive, and virtual interfaces
+                // ignore unusable network interfaces
                 if (ni.isLoopback() || !ni.isUp() || ni.isVirtual()) {
                     continue;
                 }
@@ -122,18 +109,17 @@ public class ServiceDiscovery {
                 while (addresses.hasMoreElements()) {
                     InetAddress addr = addresses.nextElement();
 
-                    // Only IPv4, and not loopback
+                    // return the first valid IPv4 address found
                     if (!addr.isLoopbackAddress()
                             && addr.getHostAddress().contains(".")) {
                         return addr;
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (SocketException e) {
             System.out.println("Could not enumerate network interfaces: " + e.getMessage());
         }
 
-        // Fallback — works on Windows where getLocalHost() gives the LAN address
         return InetAddress.getLocalHost();
     }
 }

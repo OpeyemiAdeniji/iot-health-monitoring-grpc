@@ -4,7 +4,6 @@
  */
 package distsystem.iot.health.monitoring.grpc;
 
-
 import generated.grpc.devicealert.DeviceAlert;
 import generated.grpc.devicealert.DeviceAction;
 import generated.grpc.devicealert.DeviceAlertServiceGrpc.DeviceAlertServiceImplBase;
@@ -26,15 +25,18 @@ import java.util.logging.Logger;
  * @author opeyemiadeniji
  */
 
+// gRPC server for handling real time device alerts and responding with actions
 public class DeviceAlertServer extends DeviceAlertServiceImplBase {
 
     private static final Logger logger = Logger.getLogger(DeviceAlertServer.class.getName());
+    
+    // metadata keys used to read the factory id and timestamp sent by the client
+    private static final Metadata.Key<String> FACTORY_ID_KEY
+            = Metadata.Key.of("factory-id", Metadata.ASCII_STRING_MARSHALLER);
+    private static final Metadata.Key<String> CLIENT_TIMESTAMP_KEY
+            = Metadata.Key.of("client-timestamp", Metadata.ASCII_STRING_MARSHALLER);
 
-    private static final Metadata.Key<String> FACTORY_ID_KEY =
-            Metadata.Key.of("factory-id", Metadata.ASCII_STRING_MARSHALLER);
-    private static final Metadata.Key<String> CLIENT_TIMESTAMP_KEY =
-            Metadata.Key.of("client-timestamp", Metadata.ASCII_STRING_MARSHALLER);
-
+    // starts the alert server and registers it via JmDNS
     public static void main(String[] args) {
 
         DeviceAlertServer deviceAlertServer = new DeviceAlertServer();
@@ -64,7 +66,7 @@ public class DeviceAlertServer extends DeviceAlertServiceImplBase {
         }
     }
 
-    // Bidirectional Streaming RPC - client and server send messages at the same time on one open stream
+    // handles bidirectional streaming of device alerts and sends back actions
     @Override
     public StreamObserver<DeviceAlert> liveDeviceAlerts(StreamObserver<DeviceAction> responseObserver) {
 
@@ -76,7 +78,7 @@ public class DeviceAlertServer extends DeviceAlertServiceImplBase {
             public void onNext(DeviceAlert request) {
 
                 String deviceId = request.getDeviceId();
-                String issue    = request.getIssue();
+                String issue = request.getIssue();
 
                 if (deviceId == null || deviceId.isBlank()) {
                     responseObserver.onError(Status.INVALID_ARGUMENT
@@ -92,17 +94,24 @@ public class DeviceAlertServer extends DeviceAlertServiceImplBase {
 
                 logger.info("[BIDI] Alert from " + deviceId + ": " + issue);
 
-                // decide what action to recommend based on the issue
                 String action;
                 switch (issue.toUpperCase()) {
-                    case "NO_HEARTBEAT":    action = "RESTART";       break;
-                    case "NETWORK_FAILURE": action = "CHECK_NETWORK"; break;
-                    case "HIGH_TEMPERATURE":action = "REDUCE_LOAD";   break;
-                    case "LOW_BATTERY":     action = "RECHARGE";      break;
-                    default:                action = "ESCALATE";
+                    case "NO_HEARTBEAT":
+                        action = "RESTART";
+                        break;
+                    case "NETWORK_FAILURE":
+                        action = "CHECK_NETWORK";
+                        break;
+                    case "HIGH_TEMPERATURE":
+                        action = "REDUCE_LOAD";
+                        break;
+                    case "LOW_BATTERY":
+                        action = "RECHARGE";
+                        break;
+                    default:
+                        action = "ESCALATE";
                 }
 
-                // respond immediately on the still-open stream
                 logger.info("[BIDI] Action for " + deviceId + ": " + action);
                 responseObserver.onNext(DeviceAction.newBuilder()
                         .setDeviceId(deviceId)
@@ -124,11 +133,11 @@ public class DeviceAlertServer extends DeviceAlertServiceImplBase {
         };
     }
 
-    // reads metadata headers from every incoming request and logs them
+    // intercepts requests to log incoming metadata
     static class MetadataLoggerInterceptor implements ServerInterceptor {
 
-        private static final Logger interceptorLogger =
-                Logger.getLogger(MetadataLoggerInterceptor.class.getName());
+        private static final Logger interceptorLogger
+                = Logger.getLogger(MetadataLoggerInterceptor.class.getName());
 
         @Override
         public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
@@ -136,7 +145,7 @@ public class DeviceAlertServer extends DeviceAlertServiceImplBase {
                 Metadata headers,
                 ServerCallHandler<ReqT, RespT> next) {
 
-            String factoryId       = headers.get(FACTORY_ID_KEY);
+            String factoryId = headers.get(FACTORY_ID_KEY);
             String clientTimestamp = headers.get(CLIENT_TIMESTAMP_KEY);
 
             interceptorLogger.info("Request received"

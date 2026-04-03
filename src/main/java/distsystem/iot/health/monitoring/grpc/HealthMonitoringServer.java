@@ -33,33 +33,32 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
+/**
+ *
+ * @author opeyemiadeniji
+ */
 
-//
-///**
-// *
-// * @author opeyemiadeniji
-// */
-//
-
+// gRPC server handling device heartbeat ingestion and health streaming
 public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
 
     private static final Logger logger = Logger.getLogger(HealthMonitoringServer.class.getName());
 
-    private static final Metadata.Key<String> FACTORY_ID_KEY =
-            Metadata.Key.of("factory-id", Metadata.ASCII_STRING_MARSHALLER);
-    private static final Metadata.Key<String> CLIENT_TIMESTAMP_KEY =
-            Metadata.Key.of("client-timestamp", Metadata.ASCII_STRING_MARSHALLER);
-
+    private static final Metadata.Key<String> FACTORY_ID_KEY
+            = Metadata.Key.of("factory-id", Metadata.ASCII_STRING_MARSHALLER);
+    private static final Metadata.Key<String> CLIENT_TIMESTAMP_KEY
+            = Metadata.Key.of("client-timestamp", Metadata.ASCII_STRING_MARSHALLER);
+    
     // deadline for the inter-service call to the registry
     private static final int REGISTRY_DEADLINE_SECONDS = 3;
-
-    // stores the last heartbeat time per device, used to calculate health state
+    
+    // stores the last heartbeat time per device used to calculate health state
     private static Map<String, Long> heartbeatMap = new HashMap<>();
-
+    
     // gRPC connection to DeviceRegistryServer for inter-service communication
     private static ManagedChannel registryChannel;
     private static DeviceRegistryServiceGrpc.DeviceRegistryServiceBlockingStub registryStub;
-
+    
+    // start the gRPC server, connects to registry and registers the service via JmDNS
     public static void main(String[] args) {
 
         HealthMonitoringServer healthMonitoringServer = new HealthMonitoringServer();
@@ -89,15 +88,17 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         } finally {
-            if (registryChannel != null) registryChannel.shutdown();
+            if (registryChannel != null) {
+                registryChannel.shutdown();
+            }
         }
     }
-
-    // discovers and connects to DeviceRegistryServer so heartbeats can be validated
+    
+    // dicovers and connects to the device registry service
     private static void connectToRegistry() {
         try {
-            ServiceDiscovery registryDiscovery =
-                    new ServiceDiscovery("_grpc._tcp.local.", "DeviceRegistryService");
+            ServiceDiscovery registryDiscovery
+                    = new ServiceDiscovery("_grpc._tcp.local.", "DeviceRegistryService");
             int registryPort = registryDiscovery.discoverService(10000);
             registryDiscovery.close();
 
@@ -115,8 +116,8 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
             logger.warning("Failed to connect to DeviceRegistryServer: " + e.getMessage());
         }
     }
-
-    // calls DeviceRegistryServer to check if a device is registered before accepting its heartbeat
+    
+    // check if a device is registered using the registry service
     private boolean isDeviceRegistered(String deviceId) {
         if (registryStub == null) {
             logger.warning("Registry not available - accepting heartbeat from: " + deviceId);
@@ -129,17 +130,17 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
             return reply.getExists();
         } catch (Exception e) {
             logger.warning("Registry check failed for " + deviceId + ": " + e.getMessage());
-            return true; // fail open so heartbeats still work if registry is down
+            return true; 
         }
     }
-
-    // Client Streaming RPC - receives multiple heartbeats, responds with a summary
+    
+    // handles client streamed heartbeats and returns a summary response
     @Override
     public StreamObserver<Heartbeat> uploadHeartbeats(StreamObserver<HeartbeatSummary> responseObserver) {
 
         return new StreamObserver<Heartbeat>() {
 
-            int totalHeartbeats    = 0;
+            int totalHeartbeats = 0;
             int rejectedHeartbeats = 0;
             Set<String> uniqueDevices = new HashSet<>();
 
@@ -147,7 +148,7 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
             public void onNext(Heartbeat heartbeat) {
 
                 String deviceId = heartbeat.getDeviceId();
-                long timestamp  = heartbeat.getTimestamp();
+                long timestamp = heartbeat.getTimestamp();
 
                 if (deviceId == null || deviceId.isBlank()) {
                     responseObserver.onError(Status.INVALID_ARGUMENT
@@ -161,7 +162,6 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
                     return;
                 }
 
-                // check with registry before accepting this heartbeat
                 if (!isDeviceRegistered(deviceId)) {
                     logger.warning("Rejected heartbeat from unregistered device: " + deviceId);
                     rejectedHeartbeats++;
@@ -181,7 +181,6 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
 
             @Override
             public void onCompleted() {
-                // build a message explaining how many heartbeats were accepted or rejected
                 String summaryMessage;
                 if (totalHeartbeats == 0 && rejectedHeartbeats > 0) {
                     summaryMessage = "All " + rejectedHeartbeats
@@ -207,8 +206,8 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
             }
         };
     }
-
-    // Server Streaming RPC - receives one request, streams back one status per device
+    
+    // streams device health status based on last heartbeat timestamps
     @Override
     public void streamHealth(HealthRequest request, StreamObserver<HealthStatus> responseObserver) {
 
@@ -231,14 +230,17 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
         try {
             for (Map.Entry<String, Long> entry : heartbeatMap.entrySet()) {
 
-                String deviceId    = entry.getKey();
-                long diff          = System.currentTimeMillis() - entry.getValue();
+                String deviceId = entry.getKey();
+                long diff = System.currentTimeMillis() - entry.getValue();
 
-                // state is based on how long ago the last heartbeat was received
                 String state;
-                if      (diff < 10000) state = "OK";
-                else if (diff < 20000) state = "LATE";
-                else                   state = "OFFLINE";
+                if (diff < 20000) {
+                    state = "OK";
+                } else if (diff < 40000) {
+                    state = "LATE";
+                } else {
+                    state = "OFFLINE";
+                }
 
                 responseObserver.onNext(HealthStatus.newBuilder()
                         .setDeviceId(deviceId)
@@ -253,12 +255,12 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
             e.printStackTrace();
         }
     }
-
-    // reads metadata headers from every incoming request and logs them
+    
+    // intercepts incoming requests to log metadata headers
     static class MetadataLoggerInterceptor implements ServerInterceptor {
 
-        private static final Logger interceptorLogger =
-                Logger.getLogger(MetadataLoggerInterceptor.class.getName());
+        private static final Logger interceptorLogger
+                = Logger.getLogger(MetadataLoggerInterceptor.class.getName());
 
         @Override
         public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
@@ -266,7 +268,7 @@ public class HealthMonitoringServer extends HealthMonitoringServiceImplBase {
                 Metadata headers,
                 ServerCallHandler<ReqT, RespT> next) {
 
-            String factoryId       = headers.get(FACTORY_ID_KEY);
+            String factoryId = headers.get(FACTORY_ID_KEY);
             String clientTimestamp = headers.get(CLIENT_TIMESTAMP_KEY);
 
             interceptorLogger.info("Request received"

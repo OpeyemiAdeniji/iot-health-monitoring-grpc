@@ -8,33 +8,29 @@ import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Enumeration;
 import javax.jmdns.JmDNS;
 import javax.jmdns.ServiceInfo;
-
 
 /**
  *
  * @author opeyemiadeniji
  */
 
-
-/**
- * Singleton that registers gRPC services via mDNS (JmDNS).
- * Binds to the first real LAN IPv4 address so discovery works on
- * both Windows and macOS (avoids the macOS loopback multicast issue).
- */
 public class ServiceRegistration {
 
     private static JmDNS jmdns;
     private static ServiceRegistration theRegister;
 
+    // initializes JmDNS with a non-loopback local address
     private ServiceRegistration() throws IOException {
         InetAddress address = getLocalNonLoopbackAddress();
         jmdns = JmDNS.create(address);
         System.out.println("Registering on address: " + address);
     }
 
+    // returns singleton instance, creating it if necessary
     public static ServiceRegistration getInstance() throws IOException {
         if (theRegister == null) {
             theRegister = new ServiceRegistration();
@@ -42,12 +38,14 @@ public class ServiceRegistration {
         return theRegister;
     }
 
+    // registers a service with JmDNS using the provided type, name, port and metadata
     public void registerService(String type, String name, int port, String text) throws IOException {
         ServiceInfo serviceInfo = ServiceInfo.create(type, name, port, text);
         jmdns.registerService(serviceInfo);
         System.out.println("Registered Service: " + serviceInfo);
     }
 
+    // finds a non-loopback IPv4 address from available network interfaces
     private InetAddress getLocalNonLoopbackAddress() throws IOException {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
@@ -64,7 +62,7 @@ public class ServiceRegistration {
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (SocketException e) {
             throw new IOException("Could not find non-loopback IPv4 address", e);
         }
         throw new IOException("No non-loopback IPv4 address found.");
